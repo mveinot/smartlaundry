@@ -1,0 +1,9 @@
+.pioenvs
+.piolibdeps
+.vscode/browse.vc.db*
+.clang_complete
+.gcc-flags.json
+.travis.yml
+.vscode/
+lib/
+src/pushover.h

@@ -1,0 +1,61 @@
+<!-- Web UI Version 1.2 -->
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>SmartLaundry Status</title>
+		<link rel="stylesheet" type="text/css" href="style.css">
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
+		<script src="jQueryRotate.js"></script>
+		<script type="text/javascript">
+			var debug = false;
+			var show_config = false;
+			var edit_settings = false;
+		</script>
+		<script src="include.js"></script>
+	<head>
+	<body onload="setInterval(update, 5000);">
+		<div id="container">
+			<div class="header">
+				<img src="logo.png" onclick="toggleDebug();"/>
+			</div>
+			<table>
+				<tr>
+					<th colspan="2"><p>Status</p><th>
+				</tr>
+				<tr>
+					<td class="label"><p>Version</p></td>
+ 					<td class="data"><p id="version">waiting...</p></td>
+				</tr>
+				<tr>
+					<td class="label"><p>Location temperature</p></td>
+					<td class="data"><p id="temp">waiting...</p></td>
+				</tr>
+				<tr>
+					<td class="label"><p>Dryer relay</p></td>
+					<td class="data"><p id="relay">waiting...</p></td>
+				</tr>
+				<tr>
+					<td class="label"><p>Last washer motion</p></td>
+					<td class="data"><p id="motion">waiting...</p></td>
+				</tr>
+				<tr>
+					<td class="label"><p>Deviation</p></td>
+					<td class="data"><p id="dev">waiting...</p></td>
+				</tr>
+				<tr>
+					<th colspan="2"><p class="anchor" onclick="toggleConfig();"><img id="toggle" style="vertical-align: middle;" src="arrow.png"> Configuration</p><th>
+				</tr>
+				<tr class="config">
+					<td class="label"><p>Motion tolerance</p></td>
+					<td class="data"><input class="input" id="tolerance" disabled value="waiting..." /></td>
+				</tr>
+				<tr class="config">
+					<td class="label"><p>Sample delay</p></td>
+					<td class="data"><input class="input" id="delay" disabled value="waiting..." /></td>
+				</tr>
+			</table>
+			<button id="button" onclick="edit()">Edit Settings</button>
+			<button id="cancel" onclick="cancel()">Cancel</button>
+		</div>
+	</body>
+</html>
