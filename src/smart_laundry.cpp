@@ -1,44 +1,48 @@
 /************************
    Version history
-   * 0.99.61
+ * 1.00.01 - May 9/2019
+     Remove ArduinoOTA code
+ * 1.00.00 - May 9/2019
+     Add firmware update via HTTP
+ * 0.99.61
      Fix for previous change
-   * 0.99.60
+ * 0.99.60
      Prevent dryer from alerting more than once every 10 minutes
-   * 0.99.50
+ * 0.99.50
      Use PushOver instead of MQTT
-   * 0.99.15 - Jan 18/2016
+ * 0.99.15 - Jan 18/2016
      Use MQTT authorization
      Read/Store MQTT config params from EEPROM
      Add MQTT config to Web UI
-   * 0.99.14.1 - Jan 15/2016
+ * 0.99.14.1 - Jan 15/2016
      Don't alert for washer motion started - reduce alerts by 1/2
      Wait a delay period before announcing washer stopped to see if it changes again
-   * 0.99.14 - Jan 12/2016
+ * 0.99.14 - Jan 12/2016
      Migrate to MQTT for notifications
-   * 0.99.13 - Jan 7/2016
+ * 0.99.13 - Jan 7/2016
      Add /temperature route to just return text/plain current temperature
-   * 0.99.12 - Jan 2/2016
+ * 0.99.12 - Jan 2/2016
      Add DS18B20 for temperature sensing and reporting
      Use SPIFFS filesystem for hosting web assets
-   * 0.99.11 - Dec 25/2015
+ * 0.99.11 - Dec 25/2015
      Save/recall wifi settings from eeprom
-   * 0.99.10 - Dec 23/2015
+ * 0.99.10 - Dec 23/2015
      Save settings in eeprom
      Edit from web UI
-   * 0.99.8 - Dec 17/2015
+ * 0.99.8 - Dec 17/2015
      Include array of samples in JSON output /status
-   * 0.99.7 - Dec 17/2015
+ * 0.99.7 - Dec 17/2015
      Add status output for standard deviation
      Reduce loop delay to 1/2s
      Reduce motion tolerance to 3
      Increase samples to 20
-   * 0.99.6 - Dec 17/2015
+ * 0.99.6 - Dec 17/2015
      Add notification for motion starting in addition to stopping
-   * 0.99.5 - Dec 12/2015
+ * 0.99.5 - Dec 12/2015
      Add status page and handling
  */
 
-#define VERSION "0.99.61"  // version string
+#define VERSION "1.00.01"  // version string
 #define CODE 0xc0debeef   // EEPROM setup code
 //#define DEBUG true      // enable debugging code
 
@@ -46,14 +50,12 @@
 #include <ESP8266WiFi.h>
 #include <EEPROM.h>
 #include <ESP8266WebServer.h>
-#include <ESP8266mDNS.h>
-#include <WiFiUdp.h>
-#include <ArduinoOTA.h>
 #include <OneWire.h>
 #include <FS.h>
 #include <DallasTemperature.h>
 #include <DNSServer.h>
 #include <WiFiManager.h>
+#include <ESP8266httpUpdate.h>
 #include "pushover.h"
 
 #define SAMPLES 20  // number of samples to use for standard deviation
@@ -83,7 +85,7 @@ DallasTemperature DS18B20(&ow);
 
 /* settings structure */
 struct settings {
-        int code;
+        unsigned int code;
         char ver[16];
         int wait;
         float tolerance;
@@ -115,7 +117,7 @@ void saveConfigCallback () {
         shouldSaveConfig = true;
 }
 
-byte pushover(const char *pushovermessage)
+void pushover(const char *pushovermessage)
 {
         int length;
         String message = pushovermessage;
@@ -148,7 +150,6 @@ byte pushover(const char *pushovermessage)
         }
 }
 
-
 /*** Execute once at top of runtime ***/
 void setup() {
         pinMode(RELAY, INPUT_PULLUP);
@@ -166,16 +167,28 @@ void setup() {
 
         readSettings();
 
-        /* Stuff for ArduinoOTA updates */
-        ArduinoOTA.setHostname("smartlaundry");
-        ArduinoOTA.onStart([]() {
-        });
+        WiFiClient client;
 
-        ArduinoOTA.onEnd([]() {
-        });
-
-        ArduinoOTA.begin();
-        /* End OTA setup code */
+        // Check for new firmware
+        Serial.println("[firmware] Checking for firmware update.");
+        t_httpUpdate_return update_result = ESPhttpUpdate.update(client, "pool.mvgrafx.net", 80, "/firmware/update.php", VERSION);
+        switch (update_result) {
+        case HTTP_UPDATE_FAILED:
+                Serial.println("[firmware] Update failed or not available.");
+                delay(2000);
+                break;
+        case HTTP_UPDATE_NO_UPDATES:
+                Serial.println("[firmware] No update available.");
+                delay(2000);
+                break;
+        case HTTP_UPDATE_OK:
+                Serial.println("[firmware] Firmware updated."); // likely never seen as the device will reboot
+                break;
+        default:
+                // shouldn't get here!
+                Serial.println("[firmware] Error.");
+                break;
+        }
 
         httpServer.on("/", handleRoot);
         httpServer.on("/status", handleStatus);
@@ -186,8 +199,7 @@ void setup() {
 
         last_relay = digitalRead(RELAY);
         delay(localConfig.wait);
-	std::string message = std::string("SmartLaundry v") + std::string(VERSION) + std::string(" booted");
-        //pushover((char *)"SmartLaundry Booted");
+        std::string message = std::string("SmartLaundry v") + std::string(VERSION) + std::string(" booted");
         pushover(message.c_str());
 }
 
@@ -200,9 +212,6 @@ void loop() {
                         temp = DS18B20.getTempCByIndex(0);
                 } while (temp == 85.0 || temp == (-127.0));
         }
-
-        // handle OTA update tasks
-        ArduinoOTA.handle();
 
         // handle web requests
         httpServer.handleClient();
@@ -243,7 +252,7 @@ void loop() {
 
         if (has_moved && !curr_motion && (motion_stopped_time + MOTION_DELAY < millis()))
         {
-                pushover((char *)"Washer cycle stopped");
+                //        pushover((char *)"Washer cycle stopped");
                 has_moved = false;
         }
 
@@ -259,7 +268,7 @@ void loop() {
         if (last_relay != curr_relay && curr_relay == HIGH && (millis() - dryer_alerted > 600000))
         {
                 pushover((char *)"Dryer buzzer sounded");
-		dryer_alerted = millis();
+                dryer_alerted = millis();
         }
         last_relay = curr_relay;
 
@@ -334,8 +343,6 @@ void printConfig()
         Serial.println(localConfig.code, HEX);
         Serial.println(localConfig.ver);
         Serial.println(localConfig.wait);
-        Serial.println(localConfig.ssid);
-        Serial.println(localConfig.pass);
         Serial.println(localConfig.tolerance);
 #endif
 }
